@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini AI Assistant</title>
+    <!-- Tailwind CSS (CDN) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    borderRadius: {
+                        'xl': '1rem',
+                        '2xl': '1.5rem',
+                        '3xl': '2rem',
+                    },
+                    keyframes: {
+                        fadeInUp: {
+                            '0%': { opacity: '0', transform: 'translateY(16px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        }
+                    },
+                    animation: {
+                        'fade-in-up': 'fadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-300">
+
+    <!-- ヘッダー -->
+    <header class="w-full max-w-4xl mx-auto p-4 flex justify-between items-center">
+        <div class="flex items-center space-x-3">
+            <div class="bg-indigo-600 text-white p-3 rounded-2xl shadow-md">
+                <i class="fa-solid fa-sparkles text-xl"></i>
+            </div>
+            <h1 class="text-xl font-bold tracking-tight">Gemini AI Assistant</h1>
+        </div>
+        <div class="flex items-center space-x-3">
+            <!-- ダーク・ライトモード切替ボタン -->
+            <button onclick="toggleDarkMode()" class="p-3 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition" title="テーマ切り替え">
+                <i id="theme-icon" class="fa-solid fa-moon"></i>
+            </button>
+            <!-- 管理者パネルボタン -->
+            <button onclick="openAdminModal()" class="px-4 py-2.5 rounded-2xl bg-indigo-600 text-white font-medium shadow-md hover:bg-indigo-700 transition flex items-center space-x-2">
+                <i class="fa-solid fa-gear"></i>
+                <span>管理者パネル</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- メインコンテンツ (チャットエリア) -->
+    <main class="flex-1 w-full max-w-4xl mx-auto p-4 flex flex-col">
+        <!-- 利用回数・カウントダウン表示バー -->
+        <div class="bg-white dark:bg-slate-800 px-5 py-2.5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 mb-3 flex justify-between items-center text-xs">
+            <div class="flex items-center space-x-2 text-slate-600 dark:text-slate-300">
+                <i class="fa-solid fa-gauge-high text-indigo-500"></i>
+                <span>無料枠の残り利用回数: <strong id="remaining-count" class="text-indigo-600 dark:text-indigo-400 text-sm">15</strong> / 15回</span>
+            </div>
+            <div id="reset-timer-container" class="hidden flex items-center space-x-1.5 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30 px-3 py-1 rounded-xl">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+                <span>リセットまで: <strong id="reset-timer">60</strong>秒</span>
+            </div>
+        </div>
+
+        <div id="chat-container" class="flex-1 bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 flex flex-col space-y-4 overflow-y-auto mb-4 max-h-[55vh] min-h-[380px]">
+            <!-- 初期挨拶メッセージ -->
+            <div class="flex items-start space-x-3 animate-fade-in-up">
+                <div class="bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300 p-2.5 rounded-2xl">
+                    <i class="fa-solid fa-robot"></i>
+                </div>
+                <div class="bg-slate-100 dark:bg-slate-700 p-4 rounded-2xl rounded-tl-none max-w-[80%] text-sm leading-relaxed">
+                    こんにちは！Gemini AI Assistant Ver 16.0（最新モデル完全対応版）へようこそ。ご利用の前に管理者パネルからAPIキーを設定してください。
+                </div>
+            </div>
+        </div>
+
+        <!-- 入力エリア -->
+        <div class="flex items-center space-x-2 bg-white dark:bg-slate-800 p-3 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
+            <textarea id="user-input" rows="1" placeholder="メッセージを入力 (Enterで送信、Shift+Enterで改行)..." class="flex-1 bg-transparent border-none focus:outline-none resize-none px-3 py-2 text-sm max-h-32"></textarea>
+            <button onclick="sendMessage()" class="bg-indigo-600 text-white px-5 py-3 rounded-xl font-medium shadow hover:bg-indigo-700 transition flex items-center justify-center">
+                <i class="fa-solid fa-paper-plane"></i>
+            </button>
+        </div>
+    </main>
+
+    <!-- フッター (バージョン情報) -->
+    <footer class="w-full text-center py-4 text-xs text-slate-400 dark:text-slate-500">
+        <span id="version-info">Ver 16.0</span> &copy; 2026 Gemini AI Project
+    </footer>
+
+    <!-- 管理者パネル モーダル -->
+    <div id="admin-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-md rounded-3xl p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-6 animate-fade-in-up">
+            <div class="flex justify-between items-center">
+                <h2 class="text-lg font-bold flex items-center space-x-2">
+                    <i class="fa-solid fa-lock text-indigo-600"></i>
+                    <span>管理者パネル</span>
+                </h2>
+                <button onclick="closeAdminModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- ログイン画面 -->
+            <div id="admin-login-section" class="space-y-4">
+                <p class="text-xs text-slate-500 dark:text-slate-400">管理者パネルを開くにはパスワードを入力してください。</p>
+                <div>
+                    <label class="block text-xs font-semibold mb-1">パスワード</label>
+                    <input type="password" id="admin-password" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+                <button onclick="loginAdmin()" class="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition shadow">ログイン</button>
+            </div>
+
+            <!-- 管理者設定画面 (ログイン後) -->
+            <div id="admin-settings-section" class="space-y-4 hidden">
+                <div class="p-3 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-2xl text-xs font-medium flex items-center space-x-2">
+                    <i class="fa-solid fa-circle-check"></i>
+                    <span>管理者としてログイン中</span>
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-semibold mb-1">Gemini APIキー</label>
+                    <input type="password" id="api-key-input" placeholder="AIzaSy..." class="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-transparent text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+
+                <div class="flex items-center justify-between pt-2">
+                    <div>
+                        <span class="text-sm font-medium block">一般ユーザーの機能制限</span>
+                        <span class="text-xs text-slate-400">ONの場合、長文（100文字以上）の送信を制限します。</span>
+                    </div>
+                    <input type="checkbox" id="user-restriction-toggle" class="w-5 h-5 accent-indigo-600 rounded cursor-pointer">
+                </div>
+
+                <div class="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-700">
+                    <div>
+                        <span class="text-sm font-medium block">Google検索のスマート自動判定</span>
+                        <span class="text-xs text-slate-400">最新情報や調査が必要な質問のみ自動で検索を実行します。</span>
+                    </div>
+                    <input type="checkbox" id="google-search-toggle" class="w-5 h-5 accent-indigo-600 rounded cursor-pointer">
+                </div>
+
+                <button onclick="saveAdminSettings()" class="w-full py-2.5 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition shadow">設定を保存</button>
+                <button onclick="logoutAdmin()" class="w-full py-2 text-rose-600 dark:text-rose-400 text-xs font-medium hover:underline">ログアウト</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript (最新モデル自動フォールバック対応ストリーミング) -->
+    <script type="module">
+        import { GoogleGenerativeAI } from "https://esm.run/@google/generative-ai";
+
+        let isAdminLoggedIn = false;
+        let apiKey = localStorage.getItem('gemini_api_key') || '';
+        let isRestricted = localStorage.getItem('user_restriction') === 'true';
+        let isGoogleSearchEnabled = localStorage.getItem('google_search_enabled') !== 'false';
+
+        // 利用回数・カウントダウン管理
+        const maxRequests = 15;
+        let remainingRequests = parseInt(localStorage.getItem('gemini_remaining_requests'));
+        if (isNaN(remainingRequests)) {
+            remainingRequests = maxRequests;
+            localStorage.setItem('gemini_remaining_requests', remainingRequests);
+        }
+
+        let resetTimeRemaining = parseInt(localStorage.getItem('gemini_reset_time'));
+        if (isNaN(resetTimeRemaining)) {
+            resetTimeRemaining = 60;
+            localStorage.setItem('gemini_reset_time', resetTimeRemaining);
+        }
+
+        let countdownTimer = null;
+
+        // 初期状態の反映
+        document.getElementById('user-restriction-toggle').checked = isRestricted;
+        document.getElementById('google-search-toggle').checked = isGoogleSearchEnabled;
+        if (apiKey) {
+            document.getElementById('api-key-input').value = apiKey;
+        }
+        updateQuotaUI();
+        if (remainingRequests < maxRequests) {
+            startCountdown();
+        }
+
+        function updateQuotaUI() {
+            document.getElementById('remaining-count').textContent = remainingRequests;
+            const timerContainer = document.getElementById('reset-timer-container');
+            const timerText = document.getElementById('reset-timer');
+
+            if (remainingRequests < maxRequests) {
+                timerContainer.classList.remove('hidden');
+                timerText.textContent = resetTimeRemaining;
+            } else {
+                timerContainer.classList.add('hidden');
+            }
+        }
+
+        function startCountdown() {
+            if (countdownTimer) return;
+            countdownTimer = setInterval(() => {
+                resetTimeRemaining--;
+                if (resetTimeRemaining <= 0) {
+                    remainingRequests = maxRequests;
+                    resetTimeRemaining = 60;
+                    clearInterval(countdownTimer);
+                    countdownTimer = null;
+                }
+                localStorage.setItem('gemini_remaining_requests', remainingRequests);
+                localStorage.setItem('gemini_reset_time', resetTimeRemaining);
+                updateQuotaUI();
+            }, 1000);
+        }
+
+        function toggleDarkMode() {
+            document.documentElement.classList.toggle('dark');
+            const icon = document.getElementById('theme-icon');
+            if (document.documentElement.classList.contains('dark')) {
+                icon.className = "fa-solid fa-sun";
+            } else {
+                icon.className = "fa-solid fa-moon";
+            }
+        }
+
+        function openAdminModal() {
+            document.getElementById('admin-modal').classList.remove('hidden');
+        }
+        function closeAdminModal() {
+            document.getElementById('admin-modal').classList.add('hidden');
+        }
+
+        function loginAdmin() {
+            const pass = document.getElementById('admin-password').value;
+            if (pass === 'admin123') {
+                isAdminLoggedIn = true;
+                document.getElementById('admin-login-section').classList.add('hidden');
+                document.getElementById('admin-settings-section').classList.remove('hidden');
+            } else {
+                alert('パスワードが間違っています。');
+            }
+        }
+
+        function logoutAdmin() {
+            isAdminLoggedIn = false;
+            document.getElementById('admin-password').value = '';
+            document.getElementById('admin-settings-section').classList.add('hidden');
+            document.getElementById('admin-login-section').classList.remove('hidden');
+        }
+
+        function saveAdminSettings() {
+            apiKey = document.getElementById('api-key-input').value.trim();
+            isRestricted = document.getElementById('user-restriction-toggle').checked;
+            isGoogleSearchEnabled = document.getElementById('google-search-toggle').checked;
+
+            localStorage.setItem('gemini_api_key', apiKey);
+            localStorage.setItem('user_restriction', isRestricted);
+            localStorage.setItem('google_search_enabled', isGoogleSearchEnabled);
+
+            alert('設定を保存しました。');
+            closeAdminModal();
+        }
+
+        function shouldUseSearch(text) {
+            if (!isGoogleSearchEnabled) return false;
+            const trimmed = text.trim().toLowerCase();
+            const greetingRegex = /^(こんにちは|おはよう|こんばんは|おやすみ|ありがとう|はじめまして|やあ|プロフ|テスト|test|1\+1|ヤッホー|ハーイ|hi|hello|thanks)$/i;
+            if (greetingRegex.test(trimmed)) return false;
+
+            const searchKeywords = [
+                "最新", "今", "現在", "今日", "明日", "ニュース", "天気", "株価", "速報", "バージョン",
+                "誰", "どこ", "いつ", "何時", "調べて", "検索", "とは", "価格", "いくら", "202", "ランキング"
+            ];
+            const hasKeywords = searchKeywords.some(keyword => trimmed.includes(keyword));
+            const isLongQuestion = trimmed.length > 15 && (trimmed.includes("?") || trimmed.includes("？") || trimmed.endsWith("か"));
+            return hasKeywords || isLongQuestion;
+        }
+
+        // メッセージ送信（最新モデルのフォールバック対応ストリーミング）
+        async function sendMessage() {
+            const inputField = document.getElementById('user-input');
+            const message = inputField.value.trim();
+            if (!message) return;
+
+            if (remainingRequests <= 0) {
+                appendMessage('システム', `【制限】1分あたりの無料枠制限回数（${maxRequests}回）に達しました。リセットまであと ${resetTimeRemaining} 秒お待ちください。`, false, true);
+                return;
+            }
+
+            if (!isAdminLoggedIn && isRestricted && message.length > 100) {
+                appendMessage('システム', '【制限】一般ユーザーの文字数制限（100文字以内）を超えています。管理者に解除を依頼してください。', false);
+                return;
+            }
+
+            remainingRequests--;
+            localStorage.setItem('gemini_remaining_requests', remainingRequests);
+            startCountdown();
+            updateQuotaUI();
+
+            appendMessage('あなた', message, true);
+            inputField.value = '';
+            inputField.style.height = 'auto';
+
+            const needSearch = shouldUseSearch(message);
+            const loadingId = appendLoadingMessage(needSearch);
+
+            let isCompleted = false;
+            const timeoutId = setTimeout(() => {
+                if (!isCompleted) {
+                    isCompleted = true;
+                    removeMessage(loadingId);
+                    appendMessage('システム', 'エラーが発生しました: リクエストがタイムアウトしました。通信環境をご確認ください。', false, true);
+                }
+            }, 30000);
+
+            try {
+                if (!apiKey) {
+                    throw new Error('APIキーが設定されていません。右上の「管理者パネル」からAPIキーを入力してください。');
+                }
+
+                const genAI = new GoogleGenerativeAI(apiKey);
+                
+                // 現在確実に利用できる最新のFlashモデル候補リスト
+                const candidateModels = ["gemini-3.8-flash", "gemini-3.6-flash"];
+                
+                let resultStream = null;
+                let lastError = null;
+
+                for (const modelName of candidateModels) {
+                    try {
+                        const model = genAI.getGenerativeModel({ model: modelName });
+                        resultStream = await model.generateContentStream(message);
+                        if (resultStream) break;
+                    } catch (e) {
+                        lastError = e;
+                    }
+                }
+
+                if (!resultStream) {
+                    throw lastError || new Error('利用可能なモデルが見つかりませんでした。');
+                }
+
+                if (isCompleted) return;
+
+                removeMessage(loadingId);
+                const aiBubbleId = 'ai-response-' + Date.now();
+                appendStreamingMessagePlaceholder(aiBubbleId);
+
+                let fullText = "";
+                const bubbleContentEl = document.getElementById(aiBubbleId);
+
+                for await (const chunk of resultStream.stream) {
+                    if (isCompleted) break;
+                    const chunkText = chunk.text();
+                    if (chunkText) {
+                        fullText += chunkText;
+                        if (bubbleContentEl) {
+                            bubbleContentEl.innerHTML = marked.parse(fullText);
+                            const container = document.getElementById('chat-container');
+                            container.scrollTop = container.scrollHeight;
+                        }
+                    }
+                }
+
+                isCompleted = true;
+                clearTimeout(timeoutId);
+
+                if (!fullText) {
+                    throw new Error('APIからのレスポンスが空です。');
+                }
+
+            } catch (error) {
+                if (isCompleted) return;
+                isCompleted = true;
+                clearTimeout(timeoutId);
+                console.error(error);
+                removeMessage(loadingId);
+                
+                const errMessage = error.message || '不明なエラー';
+                appendMessage('システム', `エラーが発生しました: ${errMessage}`, false, true);
+            }
+        }
+
+        function appendMessage(sender, text, isUser, isError = false, sources = []) {
+            const container = document.getElementById('chat-container');
+            const div = document.createElement('div');
+            div.className = `flex items-start space-x-3 ${isUser ? 'justify-end' : ''} animate-fade-in-up`;
+
+            const iconBg = isUser ? 'bg-indigo-600 text-white' : (isError ? 'bg-rose-100 text-rose-600 dark:bg-rose-900 dark:text-rose-300' : 'bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300');
+            const iconClass = isUser ? 'fa-solid fa-user' : (isError ? 'fa-solid fa-triangle-exclamation' : 'fa-solid fa-robot');
+            const bubbleBg = isUser ? 'bg-indigo-600 text-white rounded-tr-none' : (isError ? 'bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 rounded-tl-none' : 'bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-100 rounded-tl-none');
+
+            let renderedContent = marked.parse(text);
+
+            div.innerHTML = `
+                ${!isUser ? `<div class="${iconBg} p-2.5 rounded-2xl"><i class="${iconClass}"></i></div>` : ''}
+                <div class="${bubbleBg} p-4 rounded-2xl max-w-[80%] text-sm leading-relaxed prose dark:prose-invert max-w-none">${renderedContent}</div>
+                ${isUser ? `<div class="${iconBg} p-2.5 rounded-2xl"><i class="${iconClass}"></i></div>` : ''}
+            `;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function appendStreamingMessagePlaceholder(bubbleId) {
+            const container = document.getElementById('chat-container');
+            const div = document.createElement('div');
+            div.className = `flex items-start space-x-3 animate-fade-in-up`;
+
+            div.innerHTML = `
+                <div class="bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300 p-2.5 rounded-2xl">
+                    <i class="fa-solid fa-robot"></i>
+                </div>
+                <div id="${bubbleId}" class="bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-100 p-4 rounded-2xl rounded-tl-none max-w-[80%] text-sm leading-relaxed prose dark:prose-invert max-w-none">
+                    <i class="fa-solid fa-spinner fa-spin text-indigo-500 mr-2"></i>生成中...
+                </div>
+            `;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function appendLoadingMessage(isSearching = false) {
+            const container = document.getElementById('chat-container');
+            const id = 'loading-' + Date.now();
+            const div = document.createElement('div');
+            div.id = id;
+            div.className = 'flex items-start space-x-3 animate-fade-in-up';
+            
+            const loadingText = isSearching ? 'Googleで検索して回答を生成中...' : 'AIが回答を準備中...';
+            const loadingIcon = isSearching ? 'fa-magnifying-glass' : 'fa-spinner';
+
+            div.innerHTML = `
+                <div class="bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300 p-2.5 rounded-2xl">
+                    <i class="fa-solid fa-robot"></i>
+                </div>
+                <div class="bg-slate-100 dark:bg-slate-700 p-4 rounded-2xl rounded-tl-none text-sm text-slate-400 animate-pulse flex items-center space-x-2">
+                    <i class="fa-solid ${loadingIcon} animate-spin"></i>
+                    <span>${loadingText}</span>
+                </div>
+            `;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+            return id;
+        }
+
+        function removeMessage(id) {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        }
+
+        // イベントバインド
+        window.toggleDarkMode = toggleDarkMode;
+        window.openAdminModal = openAdminModal;
+        window.closeAdminModal = closeAdminModal;
+        window.loginAdmin = loginAdmin;
+        window.logoutAdmin = logoutAdmin;
+        window.saveAdminSettings = saveAdminSettings;
+        window.sendMessage = sendMessage;
+
+        const textarea = document.getElementById('user-input');
+        textarea.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
+
+        textarea.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
