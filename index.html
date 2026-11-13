@@ -78,7 +78,7 @@
                     <i class="fa-solid fa-robot"></i>
                 </div>
                 <div class="bg-slate-100 dark:bg-slate-700 p-4 rounded-2xl rounded-tl-none max-w-[80%] text-sm leading-relaxed">
-                    こんにちは！Gemini AI Assistant Ver 15.0（フリーズ防止・超高速安定版）へようこそ。ご利用の前に管理者パネルからAPIキーを設定してください。
+                    こんにちは！Gemini AI Assistant Ver 16.0（最新モデル完全対応版）へようこそ。ご利用の前に管理者パネルからAPIキーを設定してください。
                 </div>
             </div>
         </div>
@@ -94,7 +94,7 @@
 
     <!-- フッター (バージョン情報) -->
     <footer class="w-full text-center py-4 text-xs text-slate-400 dark:text-slate-500">
-        <span id="version-info">Ver 15.0</span> &copy; 2026 Gemini AI Project
+        <span id="version-info">Ver 16.0</span> &copy; 2026 Gemini AI Project
     </footer>
 
     <!-- 管理者パネル モーダル -->
@@ -154,7 +154,7 @@
         </div>
     </div>
 
-    <!-- JavaScript (フリーズ完全防止・タイムアウト監視付きストリーミング) -->
+    <!-- JavaScript (最新モデル自動フォールバック対応ストリーミング) -->
     <script type="module">
         import { GoogleGenerativeAI } from "https://esm.run/@google/generative-ai";
 
@@ -251,7 +251,7 @@
             isAdminLoggedIn = false;
             document.getElementById('admin-password').value = '';
             document.getElementById('admin-settings-section').classList.add('hidden');
-            document.getElementById('admin-login-section').classList.add('hidden');
+            document.getElementById('admin-login-section').classList.remove('hidden');
         }
 
         function saveAdminSettings() {
@@ -282,7 +282,7 @@
             return hasKeywords || isLongQuestion;
         }
 
-        // メッセージ送信（フリーズ防止・タイムアウト監視付き）
+        // メッセージ送信（最新モデルのフォールバック対応ストリーミング）
         async function sendMessage() {
             const inputField = document.getElementById('user-input');
             const message = inputField.value.trim();
@@ -310,15 +310,14 @@
             const needSearch = shouldUseSearch(message);
             const loadingId = appendLoadingMessage(needSearch);
 
-            // 25秒でタイムアウトさせる安全機構
             let isCompleted = false;
             const timeoutId = setTimeout(() => {
                 if (!isCompleted) {
                     isCompleted = true;
                     removeMessage(loadingId);
-                    appendMessage('システム', 'エラーが発生しました: リクエストがタイムアウトしました。APIキーまたはネットワークをご確認ください。', false, true);
+                    appendMessage('システム', 'エラーが発生しました: リクエストがタイムアウトしました。通信環境をご確認ください。', false, true);
                 }
-            }, 25000);
+            }, 30000);
 
             try {
                 if (!apiKey) {
@@ -326,11 +325,28 @@
                 }
 
                 const genAI = new GoogleGenerativeAI(apiKey);
-                const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+                
+                // 現在確実に利用できる最新のFlashモデル候補リスト
+                const candidateModels = ["gemini-3.8-flash", "gemini-3.6-flash"];
+                
+                let resultStream = null;
+                let lastError = null;
 
-                const resultStream = await model.generateContentStream(message);
+                for (const modelName of candidateModels) {
+                    try {
+                        const model = genAI.getGenerativeModel({ model: modelName });
+                        resultStream = await model.generateContentStream(message);
+                        if (resultStream) break;
+                    } catch (e) {
+                        lastError = e;
+                    }
+                }
 
-                if (isCompleted) return; // 既にタイムアウトしていれば中断
+                if (!resultStream) {
+                    throw lastError || new Error('利用可能なモデルが見つかりませんでした。');
+                }
+
+                if (isCompleted) return;
 
                 removeMessage(loadingId);
                 const aiBubbleId = 'ai-response-' + Date.now();
